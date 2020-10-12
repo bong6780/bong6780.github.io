@@ -1,0 +1,13 @@
+"0","```r
+xmax <- max(asd.result[, -1]) * 1.2
+asd.result$group <- factor(asd.result$group, levels = 12:1, labels = c(\"College or greater\", \"Some college\", \"High school\", \"Less than high school\", \"Marital status\", \"Other race\", \"Black\", \"White\", \"Sex\", \"over 65 yrs\", \"45-64 yrs\", \"21-44 yrs\"))
+a <- xyplot(asd.result$group ~ asd.result$Before.weight, panel = function(x, y){
+  panel.xyplot(x, y, col = \"black\", fill = \"gray80\", pch = 21, cex = 1.5)
+  panel.abline(v = 0, col = \"red\")
+  panel.abline(v = 0.1, col = \"red\", lty = 2)
+}, xlim = c(-0.05, xmax), ylab = \"\", xlab = \"Standardized Difference\",
+key = list(points = list(col = c(\"black\", \"black\"), fill = c(\"gray80\", \"gray20\"), pch = 21, cex = 1.5), space = \"top\", columns = 2, text = list(c(\"Before\",\"SIPTW\")))
+)
+b <- xyplot(asd.result$group ~ asd.result$SIPTW, xlim = c(-0.05, xmax), ylab = \"\", xlab = \"Standardized Difference\", col = \"black\", fill = \"gray20\", pch = 21, cex = 1.5)
+a + as.layer(b)
+```"

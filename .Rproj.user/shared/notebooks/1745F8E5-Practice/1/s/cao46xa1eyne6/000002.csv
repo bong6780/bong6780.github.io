@@ -1,0 +1,16 @@
+"0","```r
+lengtht <- function(lower, upper){
+  length <- upper - lower
+  mean <- round(apply(length, 2, mean), 4)
+  sd <- round(apply(length, 2, sd)/sqrt(nrow(length)), 4)
+  length1 <- c(mean[1], sd[1])
+  length2 <- c(mean[2], sd[2])
+  length3 <- c(mean[3], sd[3])
+  length4 <- c(mean[4], sd[4])
+  c(paste(length1, collapse = \" ± \"), paste(length2, collapse = \" ± \"), paste(length3, collapse = \" ± \"), paste(length4, collapse = \" ± \"))
+}
+lengtht(iptw.lower, iptw.upper)
+lengtht(iptw.r.lower, iptw.r.upper)
+lengtht(siptw.lower, siptw.upper)
+lengtht(siptw.r.lower, siptw.r.upper)
+```"

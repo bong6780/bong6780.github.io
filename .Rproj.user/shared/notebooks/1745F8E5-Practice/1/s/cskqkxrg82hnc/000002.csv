@@ -1,0 +1,8 @@
+"0","```r
+par(mfrow = c(1, 2))
+hist(n.iptw, col = \"gray\", breaks = 50, xlab = \"\", main = \"IPTW\", freq = F)
+hist(n.siptw, col = \"gray\", breaks = 50, xlab = \"\", main = \"SIPTW\", freq = F)
+par(mfrow = c(1, 1))
+mean(n.iptw); sd(n.iptw)
+mean(n.siptw); sd(n.siptw)
+```"

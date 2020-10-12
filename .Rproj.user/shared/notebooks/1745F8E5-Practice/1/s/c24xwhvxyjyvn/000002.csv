@@ -1,0 +1,7 @@
+"0","```r
+true.marginal.hr <- true.marginal.hr[-1, ] 
+true.marginal.mean <- apply(true.marginal.hr, 2, mean) # True marginal HR
+true.marginal.sd <- apply(true.marginal.hr, 2, sd)
+true.marginal.lower <- true.marginal.mean - 1.96 * true.marginal.sd # Lower bound of true marginal HR
+true.marginal.upper <- true.marginal.mean + 1.96 * true.marginal.sd # Upper bound of true marginal HR
+```"

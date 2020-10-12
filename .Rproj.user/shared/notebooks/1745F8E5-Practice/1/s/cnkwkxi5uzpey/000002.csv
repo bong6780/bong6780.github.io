@@ -1,0 +1,6 @@
+"0","```r
+sim.data = data[, c(\"DEATH\", \"DURATION\", \"AGE_GR\", \"SEX\", \"RACE\", \"MARITAL\", \"EDUCATION\")]
+
+marginal.sim.n = 5000 # simulation 횟수
+true.marginal.hr <- numeric(5)
+```"

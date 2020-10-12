@@ -1,0 +1,458 @@
+---
+title: "R-code"
+author : "Bongseong Kim"
+output: html_notebook
+---
+---
+
+### 1. True marginal hazard ratio simulation
+#### - 필요한 Library list
+``` {r, eval = F}
+library(sas7bdat) # Read "sas7bdat"
+library(survival) 
+library(nnet) # Multinomial logistic regression
+library(lattice)
+library(latticeExtra)
+library(bshazard)
+library(gmodels)
+library(survival)
+library(Hmisc) # for the function 'inverseFunction'
+library(multinomRob)
+```
+---
+
+#### - DB 불러오기 및 변수 정리
+```{r}
+data <- read.sas7bdat("/Users/bong/Library/Mobile Documents/com~apple~CloudDocs/Thesis/Master/NHANES/nhanes.sas7bdat")
+data$AGE_GR <- factor(data$AGE_GR)
+data$BMI_GR <- factor(data$BMI_GR)
+data$SEX <- factor(data$SEX)
+data$RACE <- factor(data$RACE)
+data$SMOKE <- factor(data$SMOKE)
+data$DRINK <- factor(data$DRINK)
+data$EXERCISE <- factor(data$EXERCISE)
+data$MARITAL <- factor(data$MARITAL)
+data$EDUCATION <- factor(data$EDUCATION)
+data$FOOD <- factor(data$FOOD)
+data$HABIT <- factor(data$HABIT)
+data$HABIT <- relevel(data$HABIT, ref = 5)
+```
+
+```{r, echo = F}
+head(data)
+```
+---
+
+#### - True Marginal HR simulation
+실제 True Marginal HR을 알 수 없기에 simulation을 통해 True를 추정한다. 5,000번의 simulation을 시행하였으며, RCT와 같은 효과를 이끌어내기위해 공변량과 상관없이 각 Subject를 임의의 Habit으로 할당한다. 최종 Habit의 비율은 각 수준마다 같게끔 맞춰줘도 되지만, 여기서는 실제 관측자료의 비율과 같에 유지하였다.
+```{r}
+sim.data = data[, c("DEATH", "DURATION", "AGE_GR", "SEX", "RACE", "MARITAL", "EDUCATION")]
+
+marginal.sim.n = 5000 # simulation 횟수
+true.marginal.hr <- numeric(5)
+```
+
+```{r}
+for(i in 1:marginal.sim.n){
+  # Generating "HABIT"
+  prob <- table(data$HABIT) / nrow(data) # 실제 HABIT의 분포와 똑같은 비율로 생성
+  sim.data$HABIT <- rmultinomial(nrow(sim.data), prob, long = T) 
+  # Habit을 환자의 어떠한 특성과 관계없이 random하게 할당함으로써 RCT의 효과를 의도한다.
+  sim.data$HABIT <- sim.data$HABIT - 1
+  sim.data$HABIT <- factor(sim.data$HABIT)
+  sim.data$HABIT <- relevel(sim.data$HABIT, ref = 5)
+  
+  # Data의 전체 행수
+  n = nrow(sim.data) 
+  
+  obj.coxph <- coxph(Surv(DURATION, DEATH) ~ HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = data) # Survival time과 Censoring time을 생성하기 위한 모수, 실제 관측자료를 이용한다.
+  
+  # Death와 Duration을 제외한 순수 공변량 DB
+  dfr.covariates = sim.data[, c("AGE_GR","SEX", "RACE", "MARITAL", "EDUCATION", "HABIT")] 
+  
+  # Baseline Hazard function을 계산하기 위한 모든 변수가 0인 벡터 생성한다.
+  # Factor 변수는 Reference값으로 설정한다.
+  d.tmp = dfr.covariates[1, ]; d.tmp[1, ] = c(1,1,1,0,1,4) 
+  
+  # Baseline cumulative hazard function의 추정 : H0(t)
+  # unique survival time중 death가 발생한 time만 가지고 H0(t) 추정한다. (단조함수가 되게 하기 위해)
+  obj.survfit = survfit(obj.coxph, newdata = d.tmp[1, ], se.fit=FALSE)
+  status.cumhaz = as.numeric(obj.survfit$n.event > 0) 
+  Hzero.inv = inverseFunction(obj.survfit$time[status.cumhaz == 1], obj.survfit$cumhaz[status.cumhaz == 1]) 
+  
+  # Censoring time inverse function 생성
+  status.cens = 1 - sim.data$DEATH
+  obj.kme.cens = survfit(Surv(sim.data$DURATION, status.cens) ~ 1, se.fit=FALSE)
+  status.kme = (obj.kme.cens$n.event > 0)
+  S.inv.cens = inverseFunction(obj.kme.cens$time[status.kme], obj.kme.cens$surv[status.kme])
+  
+  # Generating "Survival time"
+  # 위에서 생서한 새로운 Habit(Treatment variable)로 Beta*covariates 계산;
+  tmp.mat <- model.matrix(~ -1 + HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = sim.data)
+  tmp.mat <- tmp.mat[, -1]
+  temp <- -as.vector(obj.coxph$coefficients %*% t(tmp.mat))
+  
+  # Survival time, Censoring simulation
+  yy.surv = -log(runif(n))*exp(temp)
+  T.surv = Hzero.inv(yy.surv) # a set of simulated true survival times
+  pos.last.censored = which(yy.surv >= max(obj.survfit$cumhaz))
+  T.surv[pos.last.censored] = 1.00001*max(sim.data$DURATION)
+  
+  T.cens = S.inv.cens(runif(n))
+  
+  T.obs = pmin(T.surv, T.cens); NEW.DEATH = as.numeric(T.surv <= T.cens) # generated observed survival times
+  new.sim.data = data.frame(DURATION=T.obs, DEATH=NEW.DEATH, dfr.covariates)
+  true.marginal.hr <- rbind(true.marginal.hr, c(exp(coxph(Surv(DURATION, DEATH) ~ HABIT, data = new.sim.data)$coefficient), 1)) # Habit을 random하게 할당 했으므로 각 수준의 공변량 분포는 비슷할 것이며, 공변량을 보정하지 않았을 때 Marginal hazare ratio를 추정할 수 있다.
+}
+```
+위의 simulation을 통해 Habit의 각 수준마다 5,000개씩 총 20,000개의 Hazard ratio가 추정된다.
+
+```{r}
+true.marginal.hr <- true.marginal.hr[-1, ] 
+true.marginal.mean <- apply(true.marginal.hr, 2, mean) # True marginal HR
+true.marginal.sd <- apply(true.marginal.hr, 2, sd)
+true.marginal.lower <- true.marginal.mean - 1.96 * true.marginal.sd # Lower bound of true marginal HR
+true.marginal.upper <- true.marginal.mean + 1.96 * true.marginal.sd # Upper bound of true marginal HR
+```
+---
+
+### 2. IPTW vs. SIPTW simulation (+ Conditional vs. Marginal HR)
+
+```{r}
+# Propensity score model
+ps <- multinom(HABIT ~ (AGE_GR + SEX + RACE + MARITAL + EDUCATION), data = sim.data, maxit = 500)
+prob.ran <- data.frame(fitted(ps), LEVEL = sim.data$HABIT, check = 1:nrow(sim.data))
+# Habit을 재생성하기 위해 사용될 Probability matrix
+```
+
+```{r}
+sim.n <- 1000
+non.adj.mean <- numeric(5); non.adj.lower <- numeric(5); non.adj.upper <- numeric(5)
+reg.mean <- numeric(5); reg.lower <- numeric(5); reg.upper <- numeric(5)
+siptw.mean <- numeric(5); siptw.lower <- numeric(5); siptw.upper <- numeric(5)
+iptw.mean <- numeric(5); iptw.lower <- numeric(5); iptw.upper <- numeric(5)
+
+siptw.r.lower <- numeric(5); siptw.r.upper <- numeric(5); 
+iptw.r.lower <- numeric(5); iptw.r.upper <- numeric(5)
+
+n.iptw <- as.numeric() # unstabilized weight을 적용하였을 때 유사자료의 관측치의 수
+n.siptw <- as.numeric() # stabilized weight을 적용하였을 때 유사자료의 관측치의 수
+
+no.prop <- numeric(5); # weight을 적용하지 않았을 때 Habit의 수준 별 비율
+iptw.prop <- numeric(5); # unstabilized weight을 적용하였을 때 Habit의 수준 별 비율
+siptw.prop <- numeric(5); # stabilized weight을 적용하였을 때 Habit의 수준 별 비율
+```
+
+```{r}
+system.time(
+  for(i in 1:sim.n){
+    # Generating "HABIT"
+    new.treat <- as.vector(rMultinom(prob.ran[, 1:5], 1)) # 위에서 추정한 Propensity score를 이용하여 Habit을 생성한다. 즉, 실제 관측자료의 공변량 특성을 반영하여 Habit을 생성한다.
+    new.treat[new.treat == "X0"] <- 0
+    new.treat[new.treat == "X1"] <- 1
+    new.treat[new.treat == "X2"] <- 2
+    new.treat[new.treat == "X3"] <- 3
+    new.treat[new.treat == "X4"] <- 4
+    new.treat <- relevel(factor(new.treat), ref = '4')
+    
+    new.sim.data <- cbind(sim.data[,c("AGE_GR", "SEX", "RACE", "MARITAL", "EDUCATION")], HABIT = new.treat)
+    
+    # 새로운 Habit (Treatment variable)로 Beta*covariates 계산;
+    tmp.mat <- model.matrix(~ -1 + HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data)
+    tmp.mat <- tmp.mat[, -1]
+    temp <- -as.vector(obj.coxph$coefficients %*% t(tmp.mat))
+    
+    # Survival time, Censoring simulation
+    yy.surv = -log(runif(n))*exp(temp)
+    T.surv = Hzero.inv(yy.surv) # a set of simulated true survival times
+    pos.last.censored = which(yy.surv >= max(obj.survfit$cumhaz))
+    T.surv[pos.last.censored] = 1.00001*max(sim.data$DURATION)
+    
+    T.cens = S.inv.cens(runif(n))
+    
+    T.obs = pmin(T.surv, T.cens); NEW.DEATH = as.numeric(T.surv <= T.cens) # generated observed survival times
+    new.sim.data = data.frame(DURATION=T.obs, DEATH=NEW.DEATH, new.sim.data, ID = 1:nrow(new.sim.data))
+    
+    # 새로운 Habit으로 Propensity score를 추정하고, 이를 이용하여 weight와 stabilized weight을 계산한다.
+    ps.model <- multinom(HABIT ~ AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data, maxit = 500)
+    ps <- data.frame(fitted(ps.model), LEVEL = new.sim.data$HABIT, check = 1:nrow(new.sim.data))
+    ps1 <- ps[ps$LEVEL == 0, c(2, 6, 7)]; ps1$strata <- rep(nrow(ps1), nrow(ps1)); colnames(ps1)[1] <- "prob"
+    ps2 <- ps[ps$LEVEL == 1, c(3, 6, 7)]; ps2$strata <- rep(nrow(ps2), nrow(ps2)); colnames(ps2)[1] <- "prob"
+    ps3 <- ps[ps$LEVEL == 2, c(4, 6, 7)]; ps3$strata <- rep(nrow(ps3), nrow(ps3)); colnames(ps3)[1] <- "prob"
+    ps4 <- ps[ps$LEVEL == 3, c(5, 6, 7)]; ps4$strata <- rep(nrow(ps4), nrow(ps4)); colnames(ps4)[1] <- "prob"
+    ps5 <- ps[ps$LEVEL == 4, c(1, 6, 7)]; ps5$strata <- rep(nrow(ps5), nrow(ps5)); colnames(ps5)[1] <- "prob"
+    ps <- rbind(ps1, ps2, ps3, ps4, ps5)
+    ps <- ps[order(ps$check),]
+    new.sim.data <- data.frame(new.sim.data, sweight = ps$strata / (ps$prob * nrow(ps)), weight = 1 / ps$prob)
+    
+    # 공변량을 보정하지 않은 Cox PH regression (Habit을 각 Subject의 특성을 반영하여 생성하였기 때문에 True marginal HR과 차이를 보일 것이다.)
+    non.adj <- coxph(Surv(DURATION, DEATH) ~ HABIT, data = new.sim.data, robust = F)
+    non.adj.mean <- rbind(non.adj.mean, c(exp(non.adj$coefficients[1:4]), 1))
+    non.adj.lower <- rbind(non.adj.lower, c(exp(confint(non.adj))[1:4,1], 1))
+    non.adj.upper <- rbind(non.adj.upper, c(exp(confint(non.adj))[1:4,2], 1))
+    
+    # 공변량을 Cox PH regression에 포함 (이 경우 Conditional HR을 추정하기 때문에 True marginal HR과 차이를 보일 것이다.)
+    reg <- coxph(Surv(DURATION, DEATH) ~ HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data, robust = F)
+    reg.mean <- rbind(reg.mean, c(exp(reg$coefficients[1:4]), 1))
+    reg.lower <- rbind(reg.lower, c(exp(confint(reg))[1:4,1], 1))
+    reg.upper <- rbind(reg.upper, c(exp(confint(reg))[1:4,2], 1))
+    
+    # unstabilized weight을 이용한 IPTW와 stabilized weight을 이용한 SIPTW (Coefficient의 분산 추정은 MLE)
+    siptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = sweight, data = new.sim.data, robust = F)
+    iptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = weight, data = new.sim.data, robust = F)
+    
+    siptw.mean <- rbind(siptw.mean, c(exp(siptw$coefficients[1:4]), 1))
+    siptw.lower <- rbind(siptw.lower, c(exp(confint(siptw))[1:4,1], 1))
+    siptw.upper <- rbind(siptw.upper, c(exp(confint(siptw))[1:4,2], 1))
+    
+    iptw.mean <- rbind(iptw.mean, c(exp(iptw$coefficients[1:4]), 1))
+    iptw.lower <- rbind(iptw.lower, c(exp(confint(iptw))[1:4,1], 1))
+    iptw.upper <- rbind(iptw.upper, c(exp(confint(iptw))[1:4,2], 1))
+    
+    # unstabilized weight을 이용한 IPTW와 stabilized weight을 이용한 SIPTW (Coefficient의 분산 추정은 Robust)
+    siptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = sweight, data = new.sim.data, robust = T)
+    iptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = weight, data = new.sim.data, robust = T)
+    siptw.r.lower <- rbind(siptw.r.lower, c(exp(confint(siptw))[1:4,1], 1))
+    siptw.r.upper <- rbind(siptw.r.upper, c(exp(confint(siptw))[1:4,2], 1))
+    iptw.r.lower <- rbind(iptw.r.lower, c(exp(confint(iptw))[1:4,1], 1))
+    iptw.r.upper <- rbind(iptw.r.upper, c(exp(confint(iptw))[1:4,2], 1))
+    
+    # Number of pseudo-population
+    n.iptw <- c(n.iptw, sum(wtd.table(new.sim.data$HABIT, weights = new.sim.data$weight)$sum.of.weights))
+    n.siptw <- c(n.siptw, sum(wtd.table(new.sim.data$HABIT, weights = new.sim.data$sweight)$sum.of.weights))
+  
+    # Non-weight, unstabilized weight, stabilized weight에 따라 생성된 유사자료에서 Habit의 비율 비교
+    new.sim.data$noweight <- 1
+    no.prop <- rbind(no.prop, wtd.table(new.sim.data[, "HABIT"], weights = new.sim.data[, "noweight"])$sum.of.weights / sum(new.sim.data[, "noweight"]))
+    iptw.prop <- rbind(iptw.prop, wtd.table(new.sim.data[, "HABIT"], weights = new.sim.data[, "weight"])$sum.of.weights / sum(new.sim.data[, "weight"]))
+    siptw.prop <- rbind(siptw.prop, wtd.table(new.sim.data[, "HABIT"], weights = new.sim.data[, "sweight"])$sum.of.weights / sum(new.sim.data[, "sweight"]))
+    }
+)
+```
+해당 simulation은 1,000번 시행한다.
+
+```{r}
+non.adj.mean <- non.adj.mean[-1, ]; non.adj.lower <- non.adj.lower[-1, ]; non.adj.upper <- non.adj.upper[-1, ]
+reg.mean <- reg.mean[-1, ]; reg.lower <- reg.lower[-1, ]; reg.upper <- reg.upper[-1, ]
+siptw.mean <- siptw.mean[-1, ]; siptw.lower <- siptw.lower[-1, ]; siptw.upper <- siptw.upper[-1, ]
+iptw.mean <- iptw.mean[-1, ]; iptw.lower <- iptw.lower[-1, ]; iptw.upper <- iptw.upper[-1, ]
+siptw.r.lower <- siptw.r.lower[-1, ]; siptw.r.upper <- siptw.r.upper[-1, ]
+iptw.r.lower <- iptw.r.lower[-1, ]; iptw.r.upper <- iptw.r.upper[-1, ]
+
+no.prop <- no.prop[-1, ]; iptw.prop <- iptw.prop[-1, ]; siptw.prop <- siptw.prop[-1, ]
+```
+---
+
+### 3. Result
+#### - MSE
+```{r}
+mse <- function(data, true){
+  diff1 <- (data[,1] - true[1])^2
+  diff2 <- (data[,2] - true[2])^2
+  diff3 <- (data[,3] - true[3])^2
+  diff4 <- (data[,4] - true[4])^2
+  diff <- cbind(HABIT0 = diff1, HABIT1 = diff2, HABIT2 = diff3, HABIT3 = diff4)
+  round(apply(diff, 2, mean), 4)
+}
+mse.result <- rbind.data.frame(mse(reg.mean, true.marginal.mean), mse(non.adj.mean, true.marginal.mean), mse(iptw.mean, true.marginal.mean), mse(siptw.mean, true.marginal.mean))
+colnames(mse.result) <- c("HABIT 0", "HABIT 1", "HABIT 2", "HABIT 3")
+rownames(mse.result) <- c("Adjusted", "No weight", "IPTW", "SIPTW")
+mse.result
+```
+---
+
+#### - bias
+```{r}
+bias <- function(data, true){
+  diff1 <- (mean(data[,1]) - true[1])
+  diff2 <- (mean(data[,2]) - true[2])
+  diff3 <- (mean(data[,3]) - true[3])
+  diff4 <- (mean(data[,4]) - true[4])
+  diff <- round(cbind(HABIT0 = diff1, HABIT1 = diff2, HABIT2 = diff3, HABIT3 = diff4), 4)
+}
+bias.result <- rbind.data.frame(bias(reg.mean, true.marginal.mean), bias(non.adj.mean, true.marginal.mean), bias(iptw.mean, true.marginal.mean), bias(siptw.mean, true.marginal.mean))
+colnames(bias.result) <- c("HABIT 0", "HABIT 1", "HABIT 2", "HABIT 3")
+rownames(bias.result) <- c("Regression", "Regression, non-adjusted", "IPTW", "SIPTW")
+bias.result
+```
+---
+
+#### - Relative bias
+```{r}
+Rbias <- function(data, true){
+  diff1 <- (mean(data[,1]) - true[1]) / true[1]
+  diff2 <- (mean(data[,2]) - true[2]) / true[2]
+  diff3 <- (mean(data[,3]) - true[3]) / true[3]
+  diff4 <- (mean(data[,4]) - true[4]) / true[4]
+  diff <- round(cbind(HABIT0 = diff1, HABIT1 = diff2, HABIT2 = diff3, HABIT3 = diff4), 4)
+}
+Rbias.result <- rbind.data.frame(Rbias(reg.mean, true.marginal.mean), Rbias(non.adj.mean, true.marginal.mean), Rbias(iptw.mean, true.marginal.mean), Rbias(siptw.mean, true.marginal.mean))
+colnames(Rbias.result) <- c("HABIT 0", "HABIT 1", "HABIT 2", "HABIT 3")
+rownames(Rbias.result) <- c("Regression", "Regression, non-adjusted", "IPTW", "SIPTW")
+Rbias.result
+```
+---
+
+#### - Length of Confidence interval
+```{r}
+lengtht <- function(lower, upper){
+  length <- upper - lower
+  mean <- round(apply(length, 2, mean), 4)
+  sd <- round(apply(length, 2, sd)/sqrt(nrow(length)), 4)
+  length1 <- c(mean[1], sd[1])
+  length2 <- c(mean[2], sd[2])
+  length3 <- c(mean[3], sd[3])
+  length4 <- c(mean[4], sd[4])
+  c(paste(length1, collapse = " ± "), paste(length2, collapse = " ± "), paste(length3, collapse = " ± "), paste(length4, collapse = " ± "))
+}
+lengtht(iptw.lower, iptw.upper)
+lengtht(iptw.r.lower, iptw.r.upper)
+lengtht(siptw.lower, siptw.upper)
+lengtht(siptw.r.lower, siptw.r.upper)
+```
+---
+
+#### - Coverage probability
+```{r}
+coverage <- function(lower, upper, true){
+  cover1 <- ( sum(lower[,1] <= true[1] & upper[,1] >= true[1]) / nrow(lower) ) * 100
+  cover2 <- ( sum(lower[,2] <= true[2] & upper[,2] >= true[2]) / nrow(lower) ) * 100
+  cover3 <- ( sum(lower[,3] <= true[3] & upper[,3] >= true[3]) / nrow(lower) ) * 100
+  cover4 <- ( sum(lower[,4] <= true[4] & upper[,4] >= true[4]) / nrow(lower) ) * 100
+  c(cover1, cover2, cover3, cover4)
+}
+coverage(iptw.lower, iptw.upper, true.marginal.mean)
+coverage(iptw.r.lower, iptw.r.upper, true.marginal.mean)
+coverage(siptw.lower, siptw.upper, true.marginal.mean)
+coverage(siptw.r.lower, siptw.r.upper, true.marginal.mean)
+```
+---
+
+#### - Absolute Standardized Difference (ASD)
+```{r}
+asd <- function(data, var, weight){
+  habit0 <- data[data$HABIT == 0, ]
+  prob0 <- wtd.table(habit0[, eval(var)], weights = habit0[, eval(weight)])$sum.of.weights / sum(habit0[, eval(weight)])
+  
+  habit1 <- data[data$HABIT == 1, ]
+  prob1 <- wtd.table(habit1[, eval(var)], weights = habit1[, eval(weight)])$sum.of.weights / sum(habit1[, eval(weight)])
+  
+  habit2 <- data[data$HABIT == 2, ]
+  prob2 <- wtd.table(habit2[, eval(var)], weights = habit2[, eval(weight)])$sum.of.weights / sum(habit2[, eval(weight)])
+  
+  habit3 <- data[data$HABIT == 3, ]
+  prob3 <- wtd.table(habit3[, eval(var)], weights = habit3[, eval(weight)])$sum.of.weights / sum(habit3[, eval(weight)])
+  
+  prob <- cbind.data.frame(HABIT0 = prob0, HABIT1 = prob1, HABIT2 = prob2, HABIT3 = prob3)
+  if(nrow(prob) == 2) prob <- prob[1, ]
+  min.prob <- apply(prob, 1, min)
+  max.prob <- apply(prob, 1, max)
+  ( max.prob - min.prob ) / sqrt( ((max.prob * (1 - max.prob)) + (min.prob * (1 - min.prob))) / 2 )
+}
+asd.age <- cbind.data.frame(Before.weight = asd(new.sim.data, "AGE_GR", "noweight"), IPTW = asd(new.sim.data, "AGE_GR", "weight"), SIPTW = asd(new.sim.data, "AGE_GR", "sweight"))
+asd.sex <- cbind.data.frame(Before.weight = asd(new.sim.data, "SEX", "noweight"), IPTW = asd(new.sim.data, "SEX", "weight"), SIPTW = asd(new.sim.data, "SEX", "sweight"))
+asd.race <- cbind.data.frame(Before.weight = asd(new.sim.data, "RACE", "noweight"), IPTW = asd(new.sim.data, "RACE", "weight"), SIPTW = asd(new.sim.data, "RACE", "sweight"))
+asd.marital <- cbind.data.frame(Before.weight = asd(new.sim.data, "MARITAL", "noweight"), IPTW = asd(new.sim.data, "MARITAL", "weight"), SIPTW = asd(new.sim.data, "MARITAL", "sweight"))
+asd.education <- cbind.data.frame(Before.weight = asd(new.sim.data, "EDUCATION", "noweight"), IPTW = asd(new.sim.data, "EDUCATION", "weight"), SIPTW = asd(new.sim.data, "EDUCATION", "sweight"))
+asd.result <- rbind.data.frame(asd.age, asd.sex, asd.race, asd.marital, asd.education)
+group <- 1:nrow(asd.result)
+asd.result <- cbind.data.frame(group = as.factor(group), asd.result)
+```
+---
+
+### Figure
+
+#### - Box plot of hazard ratio
+```{r}
+ymin <- min(non.adj.mean, siptw.mean, iptw.mean)
+ymax <- max(non.adj.mean, siptw.mean, iptw.mean)
+par(mfrow = c(1, 3))
+boxplot(non.adj.mean[, -5], main = "No IPTW", ylim = c(ymin*0.95, ymax*1.0), xaxt = 'n', xlab = "Healthy Habit", ylab = "Hazard Ratio")
+points(true.marginal.mean[-5], col = "red", pch = 3, cex = 3, lwd = 2)
+boxplot(iptw.mean[, -5], main = "IPTW", ylim = c(ymin*0.95, ymax*1.0), xaxt = 'n', xlab = "Healthy Habit", ylab = "Hazard Ratio")
+points(true.marginal.mean[-5], col = "red", pch = 3, cex = 3, lwd = 2)
+boxplot(siptw.mean[, -5], main = "SIPTW", ylim = c(ymin*0.95, ymax*1.0), xaxt = 'n', xlab = "Healthy Habit", ylab = "Hazard Ratio")
+points(true.marginal.mean[-5], col = "red", pch = 3, cex = 3, lwd = 2)
+par(mfrow = c(1, 1))
+```
+---
+
+#### - CI plot
+```{r}
+iptw.ci <- iptw.upper - iptw.lower; iptw.ci <- iptw.ci[, -5]
+colnames(iptw.ci) <- c("T1", "T2", "T3", "T4")
+iptw.ci <- stack(data.frame(iptw.ci))
+iptw.r.ci <- iptw.r.upper - iptw.r.lower; iptw.r.ci <- iptw.r.ci[, -5]
+colnames(iptw.r.ci) <- c("T1", "T2", "T3", "T4")
+iptw.r.ci <- stack(data.frame(iptw.r.ci))
+
+siptw.ci <- siptw.upper - siptw.lower; siptw.ci <- siptw.ci[, -5]
+colnames(siptw.ci) <- c("T9", "T10", "T11", "T12")
+siptw.ci <- stack(data.frame(siptw.ci))
+siptw.r.ci <- siptw.r.upper - siptw.r.lower; siptw.r.ci <- siptw.r.ci[, -5]
+colnames(siptw.r.ci) <- c("T9", "T10", "T11", "T12")
+siptw.r.ci <- stack(data.frame(siptw.r.ci))
+
+ci.figure <- rbind.data.frame(iptw.ci, iptw.r.ci, siptw.ci, siptw.r.ci)
+ci.figure <- cbind.data.frame(ci.figure, cond = rep(c(rep("Likelihood", 4000), rep("Robust", 4000)), 2))
+bwplot(values ~ cond|ind, data = ci.figure, layout = c(4, 2), ylab = "Length of CI", main = "Length of Confidence interval", box.ratio = 2, do.out = F,
+       par.settings = list( box.umbrella=list(col= c("black", "red")), 
+                            box.dot=list(col= c("black", "red")), 
+                            box.rectangle = list(col= c("black", "red"))),
+       strip = strip.custom(factor.levels = c("IPTW, HABIT 0", "IPTW, HABIT 1", "IPTW, HABIT 2","IPTW, HABIT 3", "SIPTW, HABIT 0", "SIPTW, HABIT 1", "SIPTW, HABIT 2","SIPTW, HABIT 3")))
+```
+---
+
+#### - Histogram of Number of population
+```{r}
+par(mfrow = c(1, 2))
+hist(n.iptw, col = "gray", breaks = 50, xlab = "", main = "IPTW", freq = F)
+hist(n.siptw, col = "gray", breaks = 50, xlab = "", main = "SIPTW", freq = F)
+par(mfrow = c(1, 1))
+mean(n.iptw); sd(n.iptw)
+mean(n.siptw); sd(n.siptw)
+```
+---
+
+#### - ASD plot
+```{r}
+xmax <- max(asd.result[, -1]) * 1.2
+asd.result$group <- factor(asd.result$group, levels = 12:1, labels = c("College or greater", "Some college", "High school", "Less than high school", "Marital status", "Other race", "Black", "White", "Sex", "over 65 yrs", "45-64 yrs", "21-44 yrs"))
+a <- xyplot(asd.result$group ~ asd.result$Before.weight, panel = function(x, y){
+  panel.xyplot(x, y, col = "black", fill = "gray80", pch = 21, cex = 1.5)
+  panel.abline(v = 0, col = "red")
+  panel.abline(v = 0.1, col = "red", lty = 2)
+}, xlim = c(-0.05, xmax), ylab = "", xlab = "Standardized Difference",
+key = list(points = list(col = c("black", "black"), fill = c("gray80", "gray20"), pch = 21, cex = 1.5), space = "top", columns = 2, text = list(c("Before","SIPTW")))
+)
+b <- xyplot(asd.result$group ~ asd.result$SIPTW, xlim = c(-0.05, xmax), ylab = "", xlab = "Standardized Difference", col = "black", fill = "gray20", pch = 21, cex = 1.5)
+a + as.layer(b)
+```
+---
+
+#### - IPTW estimator vs SIPTW estimator
+```{r}
+par(mfrow = c(2, 2))
+plot(iptw.mean[,1], siptw.mean[,1], xlab = "HR by weight", ylab = "HR by stabilized weight", main = "Habit 0")
+plot(iptw.mean[,2], siptw.mean[,2], xlab = "HR by weight", ylab = "HR by stabilized weight", main = "Habit 1")
+plot(iptw.mean[,3], siptw.mean[,3], xlab = "HR by weight", ylab = "HR by stabilized weight", main = "Habit 2")
+plot(iptw.mean[,4], siptw.mean[,4], xlab = "HR by weight", ylab = "HR by stabilized weight", main = "Habit 3")
+par(mfrow = c(1, 1))
+```
+---
+
+#### - Proportion histogram
+```{r}
+tmp <- stack(as.data.frame(no.prop))
+a <- histogram(~ values|ind, data = tmp, main = "Proportion of HABIT", breaks = 20, layout = c(1, 5), col = "gray"
+               , strip = strip.custom(factor.levels = c("Habit 0", "Habit 1", "Habit 2", "Habit 3", "Habit 4")),
+               key = list(points = list(col = c("black", "black","black"), fill = c("gray", "red", "blue"), pch = 21, cex = 1.5), space = "top", columns = 3, text = list(c("No IPTW","IPTW", "SIPTW")))
+               
+)
+tmp <- stack(as.data.frame(iptw.prop))
+b <- histogram(~ values|ind, data = tmp, main = "IPTW", breaks = 10, layout = c(1, 5), col = "red", strip = strip.custom(factor.levels = c("Habit 0", "Habit 1", "Habit 2", "Habit 3", "Habit 4")))
+tmp <- stack(as.data.frame(siptw.prop))
+c <- histogram(~ values|ind, data = tmp, main = "SIPTW", breaks = 20, layout = c(1, 5), col = "blue", strip = strip.custom(factor.levels = c("Habit 0", "Habit 1", "Habit 2", "Habit 3", "Habit 4")))
+a + as.layer(b) + as.layer(c)
+```
+---

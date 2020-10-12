@@ -1,0 +1,6 @@
+"0","```r
+# Propensity score model
+ps <- multinom(HABIT ~ (AGE_GR + SEX + RACE + MARITAL + EDUCATION), data = sim.data, maxit = 500)
+prob.ran <- data.frame(fitted(ps), LEVEL = sim.data$HABIT, check = 1:nrow(sim.data))
+# Habit을 재생성하기 위해 사용될 Probability matrix
+```"

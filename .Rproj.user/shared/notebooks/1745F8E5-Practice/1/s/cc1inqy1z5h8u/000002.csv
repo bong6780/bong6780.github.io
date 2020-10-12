@@ -1,0 +1,17 @@
+"0","```r
+sim.n <- 1000
+non.adj.mean <- numeric(5); non.adj.lower <- numeric(5); non.adj.upper <- numeric(5)
+reg.mean <- numeric(5); reg.lower <- numeric(5); reg.upper <- numeric(5)
+siptw.mean <- numeric(5); siptw.lower <- numeric(5); siptw.upper <- numeric(5)
+iptw.mean <- numeric(5); iptw.lower <- numeric(5); iptw.upper <- numeric(5)
+
+siptw.r.lower <- numeric(5); siptw.r.upper <- numeric(5); 
+iptw.r.lower <- numeric(5); iptw.r.upper <- numeric(5)
+
+n.iptw <- as.numeric() # unstabilized weight을 적용하였을 때 유사자료의 관측치의 수
+n.siptw <- as.numeric() # stabilized weight을 적용하였을 때 유사자료의 관측치의 수
+
+no.prop <- numeric(5); # weight을 적용하지 않았을 때 Habit의 수준 별 비율
+iptw.prop <- numeric(5); # unstabilized weight을 적용하였을 때 Habit의 수준 별 비율
+siptw.prop <- numeric(5); # stabilized weight을 적용하였을 때 Habit의 수준 별 비율
+```"

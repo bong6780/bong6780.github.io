@@ -1,0 +1,14 @@
+"0","```r
+mse <- function(data, true){
+  diff1 <- (data[,1] - true[1])^2
+  diff2 <- (data[,2] - true[2])^2
+  diff3 <- (data[,3] - true[3])^2
+  diff4 <- (data[,4] - true[4])^2
+  diff <- cbind(HABIT0 = diff1, HABIT1 = diff2, HABIT2 = diff3, HABIT3 = diff4)
+  round(apply(diff, 2, mean), 4)
+}
+mse.result <- rbind.data.frame(mse(reg.mean, true.marginal.mean), mse(non.adj.mean, true.marginal.mean), mse(iptw.mean, true.marginal.mean), mse(siptw.mean, true.marginal.mean))
+colnames(mse.result) <- c(\"HABIT 0\", \"HABIT 1\", \"HABIT 2\", \"HABIT 3\")
+rownames(mse.result) <- c(\"Adjusted\", \"No weight\", \"IPTW\", \"SIPTW\")
+mse.result
+```"

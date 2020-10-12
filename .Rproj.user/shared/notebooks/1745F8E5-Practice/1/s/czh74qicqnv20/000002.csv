@@ -1,0 +1,8 @@
+"0","```r
+par(mfrow = c(2, 2))
+plot(iptw.mean[,1], siptw.mean[,1], xlab = \"HR by weight\", ylab = \"HR by stabilized weight\", main = \"Habit 0\")
+plot(iptw.mean[,2], siptw.mean[,2], xlab = \"HR by weight\", ylab = \"HR by stabilized weight\", main = \"Habit 1\")
+plot(iptw.mean[,3], siptw.mean[,3], xlab = \"HR by weight\", ylab = \"HR by stabilized weight\", main = \"Habit 2\")
+plot(iptw.mean[,4], siptw.mean[,4], xlab = \"HR by weight\", ylab = \"HR by stabilized weight\", main = \"Habit 3\")
+par(mfrow = c(1, 1))
+```"

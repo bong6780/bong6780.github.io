@@ -1,0 +1,15 @@
+"0","```r
+data <- read.sas7bdat(\"/Users/bong/Library/Mobile Documents/com~apple~CloudDocs/Thesis/Master/NHANES/nhanes.sas7bdat\")
+data$AGE_GR <- factor(data$AGE_GR)
+data$BMI_GR <- factor(data$BMI_GR)
+data$SEX <- factor(data$SEX)
+data$RACE <- factor(data$RACE)
+data$SMOKE <- factor(data$SMOKE)
+data$DRINK <- factor(data$DRINK)
+data$EXERCISE <- factor(data$EXERCISE)
+data$MARITAL <- factor(data$MARITAL)
+data$EDUCATION <- factor(data$EDUCATION)
+data$FOOD <- factor(data$FOOD)
+data$HABIT <- factor(data$HABIT)
+data$HABIT <- relevel(data$HABIT, ref = 5)
+```"

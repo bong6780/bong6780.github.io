@@ -1,0 +1,23 @@
+"0","```r
+iptw.ci <- iptw.upper - iptw.lower; iptw.ci <- iptw.ci[, -5]
+colnames(iptw.ci) <- c(\"T1\", \"T2\", \"T3\", \"T4\")
+iptw.ci <- stack(data.frame(iptw.ci))
+iptw.r.ci <- iptw.r.upper - iptw.r.lower; iptw.r.ci <- iptw.r.ci[, -5]
+colnames(iptw.r.ci) <- c(\"T1\", \"T2\", \"T3\", \"T4\")
+iptw.r.ci <- stack(data.frame(iptw.r.ci))
+
+siptw.ci <- siptw.upper - siptw.lower; siptw.ci <- siptw.ci[, -5]
+colnames(siptw.ci) <- c(\"T9\", \"T10\", \"T11\", \"T12\")
+siptw.ci <- stack(data.frame(siptw.ci))
+siptw.r.ci <- siptw.r.upper - siptw.r.lower; siptw.r.ci <- siptw.r.ci[, -5]
+colnames(siptw.r.ci) <- c(\"T9\", \"T10\", \"T11\", \"T12\")
+siptw.r.ci <- stack(data.frame(siptw.r.ci))
+
+ci.figure <- rbind.data.frame(iptw.ci, iptw.r.ci, siptw.ci, siptw.r.ci)
+ci.figure <- cbind.data.frame(ci.figure, cond = rep(c(rep(\"Likelihood\", 4000), rep(\"Robust\", 4000)), 2))
+bwplot(values ~ cond|ind, data = ci.figure, layout = c(4, 2), ylab = \"Length of CI\", main = \"Length of Confidence interval\", box.ratio = 2, do.out = F,
+       par.settings = list( box.umbrella=list(col= c(\"black\", \"red\")), 
+                            box.dot=list(col= c(\"black\", \"red\")), 
+                            box.rectangle = list(col= c(\"black\", \"red\"))),
+       strip = strip.custom(factor.levels = c(\"IPTW, HABIT 0\", \"IPTW, HABIT 1\", \"IPTW, HABIT 2\",\"IPTW, HABIT 3\", \"SIPTW, HABIT 0\", \"SIPTW, HABIT 1\", \"SIPTW, HABIT 2\",\"SIPTW, HABIT 3\")))
+```"

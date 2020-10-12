@@ -1,0 +1,13 @@
+"0","```r
+bias <- function(data, true){
+  diff1 <- (mean(data[,1]) - true[1])
+  diff2 <- (mean(data[,2]) - true[2])
+  diff3 <- (mean(data[,3]) - true[3])
+  diff4 <- (mean(data[,4]) - true[4])
+  diff <- round(cbind(HABIT0 = diff1, HABIT1 = diff2, HABIT2 = diff3, HABIT3 = diff4), 4)
+}
+bias.result <- rbind.data.frame(bias(reg.mean, true.marginal.mean), bias(non.adj.mean, true.marginal.mean), bias(iptw.mean, true.marginal.mean), bias(siptw.mean, true.marginal.mean))
+colnames(bias.result) <- c(\"HABIT 0\", \"HABIT 1\", \"HABIT 2\", \"HABIT 3\")
+rownames(bias.result) <- c(\"Regression\", \"Regression, non-adjusted\", \"IPTW\", \"SIPTW\")
+bias.result
+```"

@@ -1,0 +1,10 @@
+"0","```r
+non.adj.mean <- non.adj.mean[-1, ]; non.adj.lower <- non.adj.lower[-1, ]; non.adj.upper <- non.adj.upper[-1, ]
+reg.mean <- reg.mean[-1, ]; reg.lower <- reg.lower[-1, ]; reg.upper <- reg.upper[-1, ]
+siptw.mean <- siptw.mean[-1, ]; siptw.lower <- siptw.lower[-1, ]; siptw.upper <- siptw.upper[-1, ]
+iptw.mean <- iptw.mean[-1, ]; iptw.lower <- iptw.lower[-1, ]; iptw.upper <- iptw.upper[-1, ]
+siptw.r.lower <- siptw.r.lower[-1, ]; siptw.r.upper <- siptw.r.upper[-1, ]
+iptw.r.lower <- iptw.r.lower[-1, ]; iptw.r.upper <- iptw.r.upper[-1, ]
+
+no.prop <- no.prop[-1, ]; iptw.prop <- iptw.prop[-1, ]; siptw.prop <- siptw.prop[-1, ]
+```"

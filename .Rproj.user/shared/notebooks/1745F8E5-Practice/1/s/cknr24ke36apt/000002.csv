@@ -1,0 +1,29 @@
+"0","```r
+asd <- function(data, var, weight){
+  habit0 <- data[data$HABIT == 0, ]
+  prob0 <- wtd.table(habit0[, eval(var)], weights = habit0[, eval(weight)])$sum.of.weights / sum(habit0[, eval(weight)])
+  
+  habit1 <- data[data$HABIT == 1, ]
+  prob1 <- wtd.table(habit1[, eval(var)], weights = habit1[, eval(weight)])$sum.of.weights / sum(habit1[, eval(weight)])
+  
+  habit2 <- data[data$HABIT == 2, ]
+  prob2 <- wtd.table(habit2[, eval(var)], weights = habit2[, eval(weight)])$sum.of.weights / sum(habit2[, eval(weight)])
+  
+  habit3 <- data[data$HABIT == 3, ]
+  prob3 <- wtd.table(habit3[, eval(var)], weights = habit3[, eval(weight)])$sum.of.weights / sum(habit3[, eval(weight)])
+  
+  prob <- cbind.data.frame(HABIT0 = prob0, HABIT1 = prob1, HABIT2 = prob2, HABIT3 = prob3)
+  if(nrow(prob) == 2) prob <- prob[1, ]
+  min.prob <- apply(prob, 1, min)
+  max.prob <- apply(prob, 1, max)
+  ( max.prob - min.prob ) / sqrt( ((max.prob * (1 - max.prob)) + (min.prob * (1 - min.prob))) / 2 )
+}
+asd.age <- cbind.data.frame(Before.weight = asd(new.sim.data, \"AGE_GR\", \"noweight\"), IPTW = asd(new.sim.data, \"AGE_GR\", \"weight\"), SIPTW = asd(new.sim.data, \"AGE_GR\", \"sweight\"))
+asd.sex <- cbind.data.frame(Before.weight = asd(new.sim.data, \"SEX\", \"noweight\"), IPTW = asd(new.sim.data, \"SEX\", \"weight\"), SIPTW = asd(new.sim.data, \"SEX\", \"sweight\"))
+asd.race <- cbind.data.frame(Before.weight = asd(new.sim.data, \"RACE\", \"noweight\"), IPTW = asd(new.sim.data, \"RACE\", \"weight\"), SIPTW = asd(new.sim.data, \"RACE\", \"sweight\"))
+asd.marital <- cbind.data.frame(Before.weight = asd(new.sim.data, \"MARITAL\", \"noweight\"), IPTW = asd(new.sim.data, \"MARITAL\", \"weight\"), SIPTW = asd(new.sim.data, \"MARITAL\", \"sweight\"))
+asd.education <- cbind.data.frame(Before.weight = asd(new.sim.data, \"EDUCATION\", \"noweight\"), IPTW = asd(new.sim.data, \"EDUCATION\", \"weight\"), SIPTW = asd(new.sim.data, \"EDUCATION\", \"sweight\"))
+asd.result <- rbind.data.frame(asd.age, asd.sex, asd.race, asd.marital, asd.education)
+group <- 1:nrow(asd.result)
+asd.result <- cbind.data.frame(group = as.factor(group), asd.result)
+```"

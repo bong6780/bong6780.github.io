@@ -1,0 +1,10 @@
+"0","library(sas7bdat) # Read \"sas7bdat\"
+library(survival) 
+library(nnet) # Multinomial logistic regression
+library(lattice)
+library(latticeExtra)
+library(bshazard)
+library(gmodels)
+library(survival)
+library(Hmisc) # for the function 'inverseFunction'
+library(multinomRob)"

@@ -1,0 +1,13 @@
+"0","```r
+tmp <- stack(as.data.frame(no.prop))
+a <- histogram(~ values|ind, data = tmp, main = \"Proportion of HABIT\", breaks = 20, layout = c(1, 5), col = \"gray\"
+               , strip = strip.custom(factor.levels = c(\"Habit 0\", \"Habit 1\", \"Habit 2\", \"Habit 3\", \"Habit 4\")),
+               key = list(points = list(col = c(\"black\", \"black\",\"black\"), fill = c(\"gray\", \"red\", \"blue\"), pch = 21, cex = 1.5), space = \"top\", columns = 3, text = list(c(\"No IPTW\",\"IPTW\", \"SIPTW\")))
+               
+)
+tmp <- stack(as.data.frame(iptw.prop))
+b <- histogram(~ values|ind, data = tmp, main = \"IPTW\", breaks = 10, layout = c(1, 5), col = \"red\", strip = strip.custom(factor.levels = c(\"Habit 0\", \"Habit 1\", \"Habit 2\", \"Habit 3\", \"Habit 4\")))
+tmp <- stack(as.data.frame(siptw.prop))
+c <- histogram(~ values|ind, data = tmp, main = \"SIPTW\", breaks = 20, layout = c(1, 5), col = \"blue\", strip = strip.custom(factor.levels = c(\"Habit 0\", \"Habit 1\", \"Habit 2\", \"Habit 3\", \"Habit 4\")))
+a + as.layer(b) + as.layer(c)
+```"

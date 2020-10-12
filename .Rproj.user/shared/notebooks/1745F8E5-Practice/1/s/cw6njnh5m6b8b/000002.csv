@@ -1,0 +1,86 @@
+"0","```r
+system.time(
+  for(i in 1:sim.n){
+    # Generating \"HABIT\"
+    new.treat <- as.vector(rMultinom(prob.ran[, 1:5], 1)) # 위에서 추정한 Propensity score를 이용하여 Habit을 생성한다. 즉, 실제 관측자료의 공변량 특성을 반영하여 Habit을 생성한다.
+    new.treat[new.treat == \"X0\"] <- 0
+    new.treat[new.treat == \"X1\"] <- 1
+    new.treat[new.treat == \"X2\"] <- 2
+    new.treat[new.treat == \"X3\"] <- 3
+    new.treat[new.treat == \"X4\"] <- 4
+    new.treat <- relevel(factor(new.treat), ref = '4')
+    
+    new.sim.data <- cbind(sim.data[,c(\"AGE_GR\", \"SEX\", \"RACE\", \"MARITAL\", \"EDUCATION\")], HABIT = new.treat)
+    
+    # 새로운 Habit (Treatment variable)로 Beta*covariates 계산;
+    tmp.mat <- model.matrix(~ -1 + HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data)
+    tmp.mat <- tmp.mat[, -1]
+    temp <- -as.vector(obj.coxph$coefficients %*% t(tmp.mat))
+    
+    # Survival time, Censoring simulation
+    yy.surv = -log(runif(n))*exp(temp)
+    T.surv = Hzero.inv(yy.surv) # a set of simulated true survival times
+    pos.last.censored = which(yy.surv >= max(obj.survfit$cumhaz))
+    T.surv[pos.last.censored] = 1.00001*max(sim.data$DURATION)
+    
+    T.cens = S.inv.cens(runif(n))
+    
+    T.obs = pmin(T.surv, T.cens); NEW.DEATH = as.numeric(T.surv <= T.cens) # generated observed survival times
+    new.sim.data = data.frame(DURATION=T.obs, DEATH=NEW.DEATH, new.sim.data, ID = 1:nrow(new.sim.data))
+    
+    # 새로운 Habit으로 Propensity score를 추정하고, 이를 이용하여 weight와 stabilized weight을 계산한다.
+    ps.model <- multinom(HABIT ~ AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data, maxit = 500)
+    ps <- data.frame(fitted(ps.model), LEVEL = new.sim.data$HABIT, check = 1:nrow(new.sim.data))
+    ps1 <- ps[ps$LEVEL == 0, c(2, 6, 7)]; ps1$strata <- rep(nrow(ps1), nrow(ps1)); colnames(ps1)[1] <- \"prob\"
+    ps2 <- ps[ps$LEVEL == 1, c(3, 6, 7)]; ps2$strata <- rep(nrow(ps2), nrow(ps2)); colnames(ps2)[1] <- \"prob\"
+    ps3 <- ps[ps$LEVEL == 2, c(4, 6, 7)]; ps3$strata <- rep(nrow(ps3), nrow(ps3)); colnames(ps3)[1] <- \"prob\"
+    ps4 <- ps[ps$LEVEL == 3, c(5, 6, 7)]; ps4$strata <- rep(nrow(ps4), nrow(ps4)); colnames(ps4)[1] <- \"prob\"
+    ps5 <- ps[ps$LEVEL == 4, c(1, 6, 7)]; ps5$strata <- rep(nrow(ps5), nrow(ps5)); colnames(ps5)[1] <- \"prob\"
+    ps <- rbind(ps1, ps2, ps3, ps4, ps5)
+    ps <- ps[order(ps$check),]
+    new.sim.data <- data.frame(new.sim.data, sweight = ps$strata / (ps$prob * nrow(ps)), weight = 1 / ps$prob)
+    
+    # 공변량을 보정하지 않은 Cox PH regression (Habit을 각 Subject의 특성을 반영하여 생성하였기 때문에 True marginal HR과 차이를 보일 것이다.)
+    non.adj <- coxph(Surv(DURATION, DEATH) ~ HABIT, data = new.sim.data, robust = F)
+    non.adj.mean <- rbind(non.adj.mean, c(exp(non.adj$coefficients[1:4]), 1))
+    non.adj.lower <- rbind(non.adj.lower, c(exp(confint(non.adj))[1:4,1], 1))
+    non.adj.upper <- rbind(non.adj.upper, c(exp(confint(non.adj))[1:4,2], 1))
+    
+    # 공변량을 Cox PH regression에 포함 (이 경우 Conditional HR을 추정하기 때문에 True marginal HR과 차이를 보일 것이다.)
+    reg <- coxph(Surv(DURATION, DEATH) ~ HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = new.sim.data, robust = F)
+    reg.mean <- rbind(reg.mean, c(exp(reg$coefficients[1:4]), 1))
+    reg.lower <- rbind(reg.lower, c(exp(confint(reg))[1:4,1], 1))
+    reg.upper <- rbind(reg.upper, c(exp(confint(reg))[1:4,2], 1))
+    
+    # unstabilized weight을 이용한 IPTW와 stabilized weight을 이용한 SIPTW (Coefficient의 분산 추정은 MLE)
+    siptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = sweight, data = new.sim.data, robust = F)
+    iptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = weight, data = new.sim.data, robust = F)
+    
+    siptw.mean <- rbind(siptw.mean, c(exp(siptw$coefficients[1:4]), 1))
+    siptw.lower <- rbind(siptw.lower, c(exp(confint(siptw))[1:4,1], 1))
+    siptw.upper <- rbind(siptw.upper, c(exp(confint(siptw))[1:4,2], 1))
+    
+    iptw.mean <- rbind(iptw.mean, c(exp(iptw$coefficients[1:4]), 1))
+    iptw.lower <- rbind(iptw.lower, c(exp(confint(iptw))[1:4,1], 1))
+    iptw.upper <- rbind(iptw.upper, c(exp(confint(iptw))[1:4,2], 1))
+    
+    # unstabilized weight을 이용한 IPTW와 stabilized weight을 이용한 SIPTW (Coefficient의 분산 추정은 Robust)
+    siptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = sweight, data = new.sim.data, robust = T)
+    iptw <- coxph(Surv(DURATION, DEATH) ~ HABIT, weights = weight, data = new.sim.data, robust = T)
+    siptw.r.lower <- rbind(siptw.r.lower, c(exp(confint(siptw))[1:4,1], 1))
+    siptw.r.upper <- rbind(siptw.r.upper, c(exp(confint(siptw))[1:4,2], 1))
+    iptw.r.lower <- rbind(iptw.r.lower, c(exp(confint(iptw))[1:4,1], 1))
+    iptw.r.upper <- rbind(iptw.r.upper, c(exp(confint(iptw))[1:4,2], 1))
+    
+    # Number of pseudo-population
+    n.iptw <- c(n.iptw, sum(wtd.table(new.sim.data$HABIT, weights = new.sim.data$weight)$sum.of.weights))
+    n.siptw <- c(n.siptw, sum(wtd.table(new.sim.data$HABIT, weights = new.sim.data$sweight)$sum.of.weights))
+  
+    # Non-weight, unstabilized weight, stabilized weight에 따라 생성된 유사자료에서 Habit의 비율 비교
+    new.sim.data$noweight <- 1
+    no.prop <- rbind(no.prop, wtd.table(new.sim.data[, \"HABIT\"], weights = new.sim.data[, \"noweight\"])$sum.of.weights / sum(new.sim.data[, \"noweight\"]))
+    iptw.prop <- rbind(iptw.prop, wtd.table(new.sim.data[, \"HABIT\"], weights = new.sim.data[, \"weight\"])$sum.of.weights / sum(new.sim.data[, \"weight\"]))
+    siptw.prop <- rbind(siptw.prop, wtd.table(new.sim.data[, \"HABIT\"], weights = new.sim.data[, \"sweight\"])$sum.of.weights / sum(new.sim.data[, \"sweight\"]))
+    }
+)
+```"

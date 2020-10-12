@@ -1,0 +1,53 @@
+"0","```r
+for(i in 1:marginal.sim.n){
+  # Generating \"HABIT\"
+  prob <- table(data$HABIT) / nrow(data) # 실제 HABIT의 분포와 똑같은 비율로 생성
+  sim.data$HABIT <- rmultinomial(nrow(sim.data), prob, long = T) 
+  # Habit을 환자의 어떠한 특성과 관계없이 random하게 할당함으로써 RCT의 효과를 의도한다.
+  sim.data$HABIT <- sim.data$HABIT - 1
+  sim.data$HABIT <- factor(sim.data$HABIT)
+  sim.data$HABIT <- relevel(sim.data$HABIT, ref = 5)
+  
+  # Data의 전체 행수
+  n = nrow(sim.data) 
+  
+  obj.coxph <- coxph(Surv(DURATION, DEATH) ~ HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = data) # Survival time과 Censoring time을 생성하기 위한 모수, 실제 관측자료를 이용한다.
+  
+  # Death와 Duration을 제외한 순수 공변량 DB
+  dfr.covariates = sim.data[, c(\"AGE_GR\",\"SEX\", \"RACE\", \"MARITAL\", \"EDUCATION\", \"HABIT\")] 
+  
+  # Baseline Hazard function을 계산하기 위한 모든 변수가 0인 벡터 생성한다.
+  # Factor 변수는 Reference값으로 설정한다.
+  d.tmp = dfr.covariates[1, ]; d.tmp[1, ] = c(1,1,1,0,1,4) 
+  
+  # Baseline cumulative hazard function의 추정 : H0(t)
+  # unique survival time중 death가 발생한 time만 가지고 H0(t) 추정한다. (단조함수가 되게 하기 위해)
+  obj.survfit = survfit(obj.coxph, newdata = d.tmp[1, ], se.fit=FALSE)
+  status.cumhaz = as.numeric(obj.survfit$n.event > 0) 
+  Hzero.inv = inverseFunction(obj.survfit$time[status.cumhaz == 1], obj.survfit$cumhaz[status.cumhaz == 1]) 
+  
+  # Censoring time inverse function 생성
+  status.cens = 1 - sim.data$DEATH
+  obj.kme.cens = survfit(Surv(sim.data$DURATION, status.cens) ~ 1, se.fit=FALSE)
+  status.kme = (obj.kme.cens$n.event > 0)
+  S.inv.cens = inverseFunction(obj.kme.cens$time[status.kme], obj.kme.cens$surv[status.kme])
+  
+  # Generating \"Survival time\"
+  # 위에서 생서한 새로운 Habit(Treatment variable)로 Beta*covariates 계산;
+  tmp.mat <- model.matrix(~ -1 + HABIT + AGE_GR + SEX + RACE + MARITAL + EDUCATION, data = sim.data)
+  tmp.mat <- tmp.mat[, -1]
+  temp <- -as.vector(obj.coxph$coefficients %*% t(tmp.mat))
+  
+  # Survival time, Censoring simulation
+  yy.surv = -log(runif(n))*exp(temp)
+  T.surv = Hzero.inv(yy.surv) # a set of simulated true survival times
+  pos.last.censored = which(yy.surv >= max(obj.survfit$cumhaz))
+  T.surv[pos.last.censored] = 1.00001*max(sim.data$DURATION)
+  
+  T.cens = S.inv.cens(runif(n))
+  
+  T.obs = pmin(T.surv, T.cens); NEW.DEATH = as.numeric(T.surv <= T.cens) # generated observed survival times
+  new.sim.data = data.frame(DURATION=T.obs, DEATH=NEW.DEATH, dfr.covariates)
+  true.marginal.hr <- rbind(true.marginal.hr, c(exp(coxph(Surv(DURATION, DEATH) ~ HABIT, data = new.sim.data)$coefficient), 1)) # Habit을 random하게 할당 했으므로 각 수준의 공변량 분포는 비슷할 것이며, 공변량을 보정하지 않았을 때 Marginal hazare ratio를 추정할 수 있다.
+}
+```"

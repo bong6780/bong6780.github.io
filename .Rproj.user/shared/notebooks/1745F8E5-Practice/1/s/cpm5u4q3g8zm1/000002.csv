@@ -1,0 +1,13 @@
+"0","```r
+coverage <- function(lower, upper, true){
+  cover1 <- ( sum(lower[,1] <= true[1] & upper[,1] >= true[1]) / nrow(lower) ) * 100
+  cover2 <- ( sum(lower[,2] <= true[2] & upper[,2] >= true[2]) / nrow(lower) ) * 100
+  cover3 <- ( sum(lower[,3] <= true[3] & upper[,3] >= true[3]) / nrow(lower) ) * 100
+  cover4 <- ( sum(lower[,4] <= true[4] & upper[,4] >= true[4]) / nrow(lower) ) * 100
+  c(cover1, cover2, cover3, cover4)
+}
+coverage(iptw.lower, iptw.upper, true.marginal.mean)
+coverage(iptw.r.lower, iptw.r.upper, true.marginal.mean)
+coverage(siptw.lower, siptw.upper, true.marginal.mean)
+coverage(siptw.r.lower, siptw.r.upper, true.marginal.mean)
+```"
