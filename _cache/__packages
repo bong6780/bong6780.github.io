@@ -1,0 +1,15 @@
+base
+knitr
+Matrix
+lme4
+lmerTest
+DT
+grf
+sandwich
+zoo
+lmtest
+lattice
+survival
+Formula
+ggplot2
+Hmisc

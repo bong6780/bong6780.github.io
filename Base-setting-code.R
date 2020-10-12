@@ -1,5 +1,5 @@
 # jekyll 블로그 디렉토리 설정
-base <- "/Users/Han/otzslayer.github.io/"
+base <- "/Users/bong/Library/Mobile Documents/com~apple~CloudDocs/Thesis/bong6780.github.io/"
 
 # Rmd 파일이 저장된 디렉토리 지정
 rmds <- "_Rmd"
