@@ -1,3 +1,5 @@
+# Rmd 파일 저장 후 돌리는 code
+
 # jekyll 블로그 디렉토리 설정
 base <- "/Users/bong/Library/Mobile Documents/com~apple~CloudDocs/Thesis/bong6780.github.io/"
 

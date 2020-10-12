@@ -3,7 +3,7 @@
  title: "Test"
  author: "Bongseong Kim"
  date: 2020-10-12
- image: /assets/article_images/2020-10-12-chapter1/beginning.jpg
+ image: /assets/article_images/
 ---
 
 ```{r setup, include=FALSE}
@@ -48,21 +48,6 @@ XC.exp = model.matrix(~ factor(X.raw$XC) + 0)
 
 X = cbind(X.raw[,-which(names(X.raw) %in% c("C1", "XC"))], C1.exp, XC.exp)
 ```
----
-
-#### Data
-```{r}
-datatable(data.all, extension = "FixedColumns", 
-  options = list(
-  scrollX = TRUE
-))
-```
-```{r, out.height = "100%", out.width = "100%", fig.align = "center"}
-include_graphics("/Users/bong/Library/Mobile Documents/com~apple~CloudDocs/Thesis/Doctor/문헌 고찰/RMD/Covariate.png")
-```
-C1 변수와 XC 변수는 model.matrix() 함수를 이용하여 가변수 처리함.
-
----
 
 #### Grow a forest
 ```{r, echo = T}
@@ -84,13 +69,11 @@ selected.idx = which(varimp > mean(varimp))
 ```
 전체 covariate을 포함한 RF를 구축한 뒤 variable importance가 전체 평균 보다 높은 변수만 남김.
 
----
-
 #### Result
 "W.hat = W.hat"부분이 Propensity score를 고려하는 부분이며, "clusters = school.id"가 Cluster를 고려하는 부분.
 Propensity score를 고려하지 않을 때는 W.hat 대신 mean(W.hat)을 사용.
 
-#### with Propensity score & with Cluster
+##### with Propensity score & with Cluster
 ```{r, echo = T}
 ( cf = causal_forest(X[,selected.idx], Y, W,
                    Y.hat = Y.hat, W.hat = W.hat,
@@ -102,7 +85,7 @@ ATE = average_treatment_effect(cf)
       "+/-", round(qnorm(0.975) * ATE[2], 3)) )
 ```
 
-#### with Propensity score & without Cluster
+##### with Propensity score & without Cluster
 ```{r, echo = T}
 cf.noclust = causal_forest(X[,selected.idx], Y, W,
                            Y.hat = Y.hat, W.hat = W.hat,
@@ -112,7 +95,7 @@ ATE.noclust = average_treatment_effect(cf.noclust)
       "+/-", round(qnorm(0.975) * ATE.noclust[2], 3)) )
 ```
 
-#### without propensity score / with cluster
+##### without propensity score / with cluster
 ```{r, echo = T}
 cf.noprop = causal_forest(X[,selected.idx], Y, W,
                           Y.hat = Y.hat, W.hat = mean(W),
@@ -124,7 +107,7 @@ ATE.noprop = average_treatment_effect(cf.noprop)
       "+/-", round(qnorm(0.975) * ATE.noprop[2], 3)) )
 ```
 
-#### without propensity score / without cluster
+##### without propensity score / without cluster
 ```{r, echo = T}
 cf.nono = causal_forest(X[,selected.idx], Y, W,
                           Y.hat = Y.hat, W.hat = mean(W),
@@ -134,7 +117,7 @@ ATE.nono = average_treatment_effect(cf.nono)
       "+/-", round(qnorm(0.975) * ATE.nono[2], 3)) )
 ```
 
-#### with Propensity score & with Cluster (Logistic ver.)
+##### with Propensity score & with Cluster (Logistic ver.)
 ```{r, echo = T}
 logi = cbind.data.frame(W, X)
 logi.res = glm(factor(W) ~ ., data = logi, family = binomial)
@@ -158,7 +141,7 @@ hist(W.hat, breaks = 50, col = c2, add = T)
 legend("topright", legend = c("Logistic", "RF"), col = c(c1, c2), border = NULL, pch = 15)
 ```
 
-#### Standard regression model
+##### Standard regression model
 ```{r, echo = T}
 reg <- cbind.data.frame(Y, W, X[,selected.idx])
 lm.result <- lm(Y ~ W + ., data = reg)
@@ -168,7 +151,7 @@ out$coefficients["W", 1:2]
                        "+/-", round(out$coefficients["W", 2], 3)) )
 ```
 
-#### Mixed regression model - 절편, 기울기
+##### Mixed regression model - 절편, 기울기
 ```{r, echo = T}
 mix <- cbind.data.frame(school.id, Y, W, X[,selected.idx])
 mix.result <- lmer(Y ~ W + (1 + W | school.id) + ., data = mix)
